@@ -1,9 +1,9 @@
 import streamlit as st
 import os
 
-# -----------------------------
+# ---------------------------------
 # USERS (RBAC)
-# -----------------------------
+# ---------------------------------
 USERS = {
     "intern": {
         "password": "intern123",
@@ -23,59 +23,80 @@ USERS = {
     }
 }
 
-# -----------------------------
+# ---------------------------------
 # ROLE → DOCUMENT ACCESS
-# -----------------------------
+# ---------------------------------
 ROLE_DOCS = {
     "employee": ["general.txt"],
     "finance": ["finance.txt", "general.txt"],
     "hr": ["hr.txt", "general.txt"],
-    "admin": ["general.txt", "finance.txt", "hr.txt", "engineering.txt", "employeedata.txt"]
+    "admin": [
+        "general.txt",
+        "finance.txt",
+        "hr.txt",
+        "engineering.txt",
+        "employeedata.txt"
+    ]
 }
 
 DATA_DIR = "data/documents"
 
-# -----------------------------
-# AUTH FUNCTION
-# -----------------------------
+# ---------------------------------
+# AUTHENTICATION
+# ---------------------------------
 def authenticate(username, password):
     user = USERS.get(username)
     if user and user["password"] == password:
         return user["role"]
     return None
 
-# -----------------------------
+# ---------------------------------
 # LOAD DOCUMENTS BY ROLE
-# -----------------------------
+# ---------------------------------
 def load_documents(role):
     docs = []
-    allowed_files = ROLE_DOCS.get(role, [])
-
-    for file in allowed_files:
+    for file in ROLE_DOCS.get(role, []):
         path = os.path.join(DATA_DIR, file)
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 docs.append(f.read())
-
     return "\n".join(docs)
 
-# -----------------------------
-# SIMPLE CHAT RESPONSE (RAG-like)
-# -----------------------------
+# ---------------------------------
+# CHATBOT RESPONSE (FIXED LOGIC)
+# ---------------------------------
 def chatbot_response(query, role):
     knowledge = load_documents(role)
-    if query.lower() in knowledge.lower():
-        return "✅ Based on company documents:\n\n" + knowledge[:500]
-    else:
-        return "❌ Sorry, I could not find this information in your permitted documents."
 
-# -----------------------------
+    if not knowledge.strip():
+        return "❌ No documents available for your role."
+
+    # Keyword-based relevance check
+    keywords = query.lower().split()
+    match_found = any(word in knowledge.lower() for word in keywords)
+
+    if match_found:
+        return (
+            "✅ Based on documents permitted for your role:\n\n"
+            + knowledge[:800]
+        )
+    else:
+        return (
+            "❌ The information you requested is not available "
+            "for your role based on access permissions."
+        )
+
+# ---------------------------------
 # STREAMLIT UI
-# -----------------------------
-st.set_page_config(page_title="Internal RBAC Chatbot", page_icon="🤖")
+# ---------------------------------
+st.set_page_config(
+    page_title="Internal RBAC Chatbot",
+    page_icon="🤖",
+    layout="centered"
+)
 
 st.title("🤖 Company Internal Chatbot")
-st.write("Secure Role-Based Access Chatbot (Infosys Springboard 6.0)")
+st.write("Role-Based Access Control + Document-Aware Chatbot")
 
 # Session state
 if "logged_in" not in st.session_state:
@@ -83,9 +104,9 @@ if "logged_in" not in st.session_state:
 if "role" not in st.session_state:
     st.session_state.role = None
 
-# -----------------------------
+# ---------------------------------
 # LOGIN PAGE
-# -----------------------------
+# ---------------------------------
 if not st.session_state.logged_in:
     st.subheader("🔐 Login")
 
@@ -102,13 +123,13 @@ if not st.session_state.logged_in:
         else:
             st.error("Invalid username or password")
 
-# -----------------------------
+# ---------------------------------
 # CHAT PAGE
-# -----------------------------
+# ---------------------------------
 else:
-    st.success(f"Role: {st.session_state.role.upper()}")
+    st.success(f"Logged in role: **{st.session_state.role.upper()}**")
 
-    query = st.text_input("Ask a question")
+    query = st.text_input("Ask a question related to your department")
 
     if st.button("Ask"):
         if query.strip() == "":
