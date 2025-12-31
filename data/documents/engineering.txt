@@ -1,0 +1,11 @@
+[ROLE: engineering]
+1. Name: David Green, Role: Software Engineer, Department: Engineering, Salary: 60000, Contact: 9876543230, Email: david.green@company.com
+2. Name: Emma Black, Role: DevOps Engineer, Department: Engineering, Salary: 65000, Contact: 9876543231, Email: emma.black@company.com
+3. Name: Liam King, Role: Software Engineer, Department: Engineering, Salary: 62000, Contact: 9876543232, Email: liam.king@company.com
+4. Name: Mia Scott, Role: QA Engineer, Department: Engineering, Salary: 58000, Contact: 9876543233, Email: mia.scott@company.com
+5. Name: Noah Adams, Role: DevOps Engineer, Department: Engineering, Salary: 64000, Contact: 9876543234, Email: noah.adams@company.com
+6. Name: Ava Baker, Role: Software Engineer, Department: Engineering, Salary: 61000, Contact: 9876543235, Email: ava.baker@company.com
+7. Name: William Perez, Role: QA Engineer, Department: Engineering, Salary: 59000, Contact: 9876543236, Email: william.perez@company.com
+8. Name: Sophia Roberts, Role: Software Engineer, Department: Engineering, Salary: 62000, Contact: 9876543237, Email: sophia.roberts@company.com
+9. Name: James Turner, Role: DevOps Engineer, Department: Engineering, Salary: 65000, Contact: 9876543238, Email: james.turner@company.com
+10. Name: Isabella Phillips, Role: QA Engineer, Department: Engineering, Salary: 58000, Contact: 9876543239, Email: isabella.phillips@company.com

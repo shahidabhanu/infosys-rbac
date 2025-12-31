@@ -1,0 +1,11 @@
+[ROLE: hr]
+1. Name: John Doe, Role: HR Executive, Department: HR, Salary: 45000, Contact: 9876543210, Email: john.doe@company.com
+2. Name: Jane Smith, Role: HR Manager, Department: HR, Salary: 65000, Contact: 9876543211, Email: jane.smith@company.com
+3. Name: Alice Johnson, Role: HR Assistant, Department: HR, Salary: 40000, Contact: 9876543212, Email: alice.johnson@company.com
+4. Name: Michael Brown, Role: HR Executive, Department: HR, Salary: 47000, Contact: 9876543213, Email: michael.brown@company.com
+5. Name: Emily Davis, Role: HR Coordinator, Department: HR, Salary: 43000, Contact: 9876543214, Email: emily.davis@company.com
+6. Name: Daniel Wilson, Role: HR Specialist, Department: HR, Salary: 48000, Contact: 9876543215, Email: daniel.wilson@company.com
+7. Name: Olivia Taylor, Role: HR Assistant, Department: HR, Salary: 42000, Contact: 9876543216, Email: olivia.taylor@company.com
+8. Name: William Anderson, Role: HR Executive, Department: HR, Salary: 46000, Contact: 9876543217, Email: william.anderson@company.com
+9. Name: Sophia Thomas, Role: HR Manager, Department: HR, Salary: 67000, Contact: 9876543218, Email: sophia.thomas@company.com
+10. Name: James Martinez, Role: HR Executive, Department: HR, Salary: 45000, Contact: 9876543219, Email: james.martinez@company.com

@@ -1,0 +1,11 @@
+[ROLE: finance]
+1. Name: Bob Brown, Role: Accountant, Department: Finance, Salary: 50000, Contact: 9876543220, Email: bob.brown@company.com
+2. Name: Carol White, Role: Finance Manager, Department: Finance, Salary: 70000, Contact: 9876543221, Email: carol.white@company.com
+3. Name: David Lee, Role: Financial Analyst, Department: Finance, Salary: 55000, Contact: 9876543222, Email: david.lee@company.com
+4. Name: Emma Harris, Role: Accountant, Department: Finance, Salary: 52000, Contact: 9876543223, Email: emma.harris@company.com
+5. Name: Frank Clark, Role: Finance Executive, Department: Finance, Salary: 53000, Contact: 9876543224, Email: frank.clark@company.com
+6. Name: Grace Lewis, Role: Finance Manager, Department: Finance, Salary: 71000, Contact: 9876543225, Email: grace.lewis@company.com
+7. Name: Henry Walker, Role: Accountant, Department: Finance, Salary: 50000, Contact: 9876543226, Email: henry.walker@company.com
+8. Name: Isabella Hall, Role: Financial Analyst, Department: Finance, Salary: 56000, Contact: 9876543227, Email: isabella.hall@company.com
+9. Name: Jack Allen, Role: Finance Executive, Department: Finance, Salary: 54000, Contact: 9876543228, Email: jack.allen@company.com
+10. Name: Karen Young, Role: Finance Manager, Department: Finance, Salary: 72000, Contact: 9876543229, Email: karen.young@company.com

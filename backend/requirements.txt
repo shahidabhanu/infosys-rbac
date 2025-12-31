@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-jose
+passlib[bcrypt]
+sentence-transformers
+faiss-cpu
+pydantic
+streamlit
+

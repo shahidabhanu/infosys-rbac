@@ -1,0 +1,11 @@
+[ROLE: general]
+1. Name: Noah Morgan, Role: Receptionist, Department: General, Salary: 35000, Contact: 9876543250, Email: noah.morgan@company.com
+2. Name: Emma Bell, Role: Office Assistant, Department: General, Salary: 34000, Contact: 9876543251, Email: emma.bell@company.com
+3. Name: Liam Murphy, Role: Admin Executive, Department: General, Salary: 38000, Contact: 9876543252, Email: liam.murphy@company.com
+4. Name: Olivia Bailey, Role: Receptionist, Department: General, Salary: 35000, Contact: 9876543253, Email: olivia.bailey@company.com
+5. Name: William Cooper, Role: Office Assistant, Department: General, Salary: 34000, Contact: 9876543254, Email: william.cooper@company.com
+6. Name: Sophia Richardson, Role: Admin Executive, Department: General, Salary: 38000, Contact: 9876543255, Email: sophia.richardson@company.com
+7. Name: James Cox, Role: Receptionist, Department: General, Salary: 35000, Contact: 9876543256, Email: james.cox@company.com
+8. Name: Isabella Howard, Role: Office Assistant, Department: General, Salary: 34000, Contact: 9876543257, Email: isabella.howard@company.com
+9. Name: Ethan Ward, Role: Admin Executive, Department: General, Salary: 38000, Contact: 9876543258, Email: ethan.ward@company.com
+10. Name: Mia Torres, Role: Receptionist, Department: General, Salary: 35000, Contact: 9876543259, Email: mia.torres@company.com
