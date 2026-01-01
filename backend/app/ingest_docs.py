@@ -2,7 +2,7 @@
 import os
 import pickle
 from sentence_transformers import SentenceTransformer
-import faiss
+import faiss 
 
 
 from config import DATA_DIR, VECTOR_DB_DIR, EMBEDDING_MODEL

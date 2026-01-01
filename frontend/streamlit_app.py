@@ -1,4 +1,7 @@
 import streamlit as st
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 import pickle
 import faiss
 from sentence_transformers import SentenceTransformer
@@ -13,8 +16,7 @@ st.set_page_config(
 
 # ---------------- PATH CONFIG ----------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-INDEX_PATH = os.path.join(BASE_DIR, "data","vector_db", "index.faiss")
+INDEX_PATH = os.path.join(BASE_DIR, "data", "vector_db", "index.faiss")
 META_PATH = os.path.join(BASE_DIR, "data", "vector_db", "metadata.pkl")
 
 # ---------------- LOAD MODEL ----------------
@@ -32,34 +34,13 @@ with open(META_PATH, "rb") as f:
 
 # ---------------- USERS (RBAC) ----------------
 USERS = {
-    "intern": {
-        "password": "intern123",
-        "role": "employee"
-    },
-    "finance": {
-        "password": "finance123",
-        "role": "finance"
-    },
-    "hr": {
-        "password": "hr123",
-        "role": "hr"
-    },
-    "ceo": {
-        "password": "ceo123",
-        "role": "clevel"
-    },
-    "cto": {
-        "password": "cto123",
-        "role": "clevel"
-    },
-    "cfo": {
-        "password": "cfo123",
-        "role": "clevel"
-    },
-    "admin": {
-        "password": "admin123",
-        "role": "admin"
-    }
+    "intern": {"password": "intern123", "role": "employee"},
+    "finance": {"password": "finance123", "role": "finance"},
+    "hr": {"password": "hr123", "role": "hr"},
+    "ceo": {"password": "ceo123", "role": "clevel"},
+    "cto": {"password": "cto123", "role": "clevel"},
+    "cfo": {"password": "cfo123", "role": "clevel"},
+    "admin": {"password": "admin123", "role": "admin"}
 }
 
 # ---------------- SESSION STATE ----------------
@@ -70,10 +51,8 @@ if "logged_in" not in st.session_state:
 def is_allowed(user_role, doc_role):
     if user_role == "admin":
         return True
-
     if user_role == "clevel":
         return doc_role in ["general", "finance", "hr"]
-
     return user_role == doc_role or doc_role == "general"
 
 # ---------------- UI ----------------
@@ -88,7 +67,9 @@ if not st.session_state.logged_in:
         if username in USERS and USERS[username]["password"] == password:
             st.session_state.logged_in = True
             st.session_state.role = USERS[username]["role"]
+            st.session_state.username = username
             st.success(f"✅ Logged in as {st.session_state.role}")
+            st.rerun()  # ✅ FIX: forces page refresh
         else:
             st.error("❌ Invalid credentials")
 
@@ -118,4 +99,4 @@ if query:
 st.markdown("---")
 if st.button("Logout"):
     st.session_state.logged_in = False
-    st.experimental_rerun()
+    st.rerun()
