@@ -1,21 +1,60 @@
 import streamlit as st
+import pickle
+import faiss
+from sentence_transformers import SentenceTransformer
+import numpy as np
 import os
 
-# ---------------------------------
-# USERS (RBAC)
-# ---------------------------------
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="Company Internal Chatbot",
+    layout="centered"
+)
+
+# ---------------- PATH CONFIG ----------------
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+INDEX_PATH = os.path.join(BASE_DIR, "backend", "app", "vector_db", "index.faiss")
+META_PATH = os.path.join(BASE_DIR, "backend", "app", "vector_db", "metadata.pkl")
+
+# ---------------- LOAD MODEL ----------------
+MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+
+# ---------------- LOAD VECTOR STORE ----------------
+if not os.path.exists(INDEX_PATH) or not os.path.exists(META_PATH):
+    st.error("❌ Vector store not found. Please create FAISS index first.")
+    st.stop()
+
+index = faiss.read_index(INDEX_PATH)
+
+with open(META_PATH, "rb") as f:
+    metadata = pickle.load(f)
+
+# ---------------- USERS (RBAC) ----------------
 USERS = {
     "intern": {
         "password": "intern123",
         "role": "employee"
     },
-    "finance_user": {
+    "finance": {
         "password": "finance123",
         "role": "finance"
     },
-    "hr_user": {
+    "hr": {
         "password": "hr123",
         "role": "hr"
+    },
+    "ceo": {
+        "password": "ceo123",
+        "role": "clevel"
+    },
+    "cto": {
+        "password": "cto123",
+        "role": "clevel"
+    },
+    "cfo": {
+        "password": "cfo123",
+        "role": "clevel"
     },
     "admin": {
         "password": "admin123",
@@ -23,122 +62,60 @@ USERS = {
     }
 }
 
-# ---------------------------------
-# ROLE → DOCUMENT ACCESS
-# ---------------------------------
-ROLE_DOCS = {
-    "employee": ["general.txt"],
-    "finance": ["finance.txt", "general.txt"],
-    "hr": ["hr.txt", "general.txt"],
-    "admin": [
-        "general.txt",
-        "finance.txt",
-        "hr.txt",
-        "engineering.txt",
-        "employeedata.txt"
-    ]
-}
-
-DATA_DIR = "data/documents"
-
-# ---------------------------------
-# AUTHENTICATION
-# ---------------------------------
-def authenticate(username, password):
-    user = USERS.get(username)
-    if user and user["password"] == password:
-        return user["role"]
-    return None
-
-# ---------------------------------
-# LOAD DOCUMENTS BY ROLE
-# ---------------------------------
-def load_documents(role):
-    docs = []
-    for file in ROLE_DOCS.get(role, []):
-        path = os.path.join(DATA_DIR, file)
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                docs.append(f.read())
-    return "\n".join(docs)
-
-# ---------------------------------
-# CHATBOT RESPONSE (FIXED LOGIC)
-# ---------------------------------
-def chatbot_response(query, role):
-    knowledge = load_documents(role)
-
-    if not knowledge.strip():
-        return "❌ No documents available for your role."
-
-    # Keyword-based relevance check
-    keywords = query.lower().split()
-    match_found = any(word in knowledge.lower() for word in keywords)
-
-    if match_found:
-        return (
-            "✅ Based on documents permitted for your role:\n\n"
-            + knowledge[:800]
-        )
-    else:
-        return (
-            "❌ The information you requested is not available "
-            "for your role based on access permissions."
-        )
-
-# ---------------------------------
-# STREAMLIT UI
-# ---------------------------------
-st.set_page_config(
-    page_title="Internal RBAC Chatbot",
-    page_icon="🤖",
-    layout="centered"
-)
-
-st.title("🤖 Company Internal Chatbot")
-st.write("Role-Based Access Control + Document-Aware Chatbot")
-
-# Session state
+# ---------------- SESSION STATE ----------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "role" not in st.session_state:
-    st.session_state.role = None
 
-# ---------------------------------
-# LOGIN PAGE
-# ---------------------------------
+# ---------------- ACCESS CONTROL ----------------
+def is_allowed(user_role, doc_role):
+    if user_role == "admin":
+        return True
+
+    if user_role == "clevel":
+        return doc_role in ["general", "finance", "hr"]
+
+    return user_role == doc_role or doc_role == "general"
+
+# ---------------- UI ----------------
+st.title("🔐 Company Internal Chatbot")
+
+# ---------------- LOGIN ----------------
 if not st.session_state.logged_in:
-    st.subheader("🔐 Login")
-
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        role = authenticate(username, password)
-        if role:
+        if username in USERS and USERS[username]["password"] == password:
             st.session_state.logged_in = True
-            st.session_state.role = role
-            st.success(f"Logged in as **{role.upper()}**")
-            st.rerun()
+            st.session_state.role = USERS[username]["role"]
+            st.success(f"✅ Logged in as {st.session_state.role}")
         else:
-            st.error("Invalid username or password")
+            st.error("❌ Invalid credentials")
 
-# ---------------------------------
-# CHAT PAGE
-# ---------------------------------
-else:
-    st.success(f"Logged in role: **{st.session_state.role.upper()}**")
+    st.stop()
 
-    query = st.text_input("Ask a question related to your department")
+# ---------------- CHAT ----------------
+st.subheader("💬 Ask your question")
+query = st.text_input("Enter your question")
 
-    if st.button("Ask"):
-        if query.strip() == "":
-            st.warning("Please enter a question")
-        else:
-            answer = chatbot_response(query, st.session_state.role)
-            st.write(answer)
+if query:
+    query_vec = MODEL.encode([query])
+    D, I = index.search(np.array(query_vec), 10)
 
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.role = None
-        st.rerun()
+    answers = []
+    for idx in I[0]:
+        doc = metadata[idx]
+        if is_allowed(st.session_state.role, doc["role"]):
+            answers.append(doc["text"])
+
+    if answers:
+        st.success("Answer:")
+        st.write(" ".join(answers[:3]))
+    else:
+        st.error("❌ Sorry, this information is not permitted for your role.")
+
+# ---------------- LOGOUT ----------------
+st.markdown("---")
+if st.button("Logout"):
+    st.session_state.logged_in = False
+    st.experimental_rerun()

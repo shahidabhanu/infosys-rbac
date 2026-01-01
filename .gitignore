@@ -11,6 +11,7 @@ vector_db/
 *.faiss
 *.pkl
 
+
 # OS files
 .DS_Store
 Thumbs.db
