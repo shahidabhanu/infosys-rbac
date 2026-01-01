@@ -6,4 +6,7 @@ sentence-transformers
 faiss-cpu
 pydantic
 streamlit
+huggingface-hub
+numpy
+pickle-mixin
 
