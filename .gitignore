@@ -1,17 +1,33 @@
+# ------------------------
 # Virtual environments
+# ------------------------
 venv/
 .venv/
 
+# ------------------------
 # Python cache
+# ------------------------
 __pycache__/
 *.pyc
 
-# Vector DB (auto generated)
+# ------------------------
+# Vector database (auto generated)
+# ------------------------
 vector_db/
 *.faiss
 *.pkl
 
+# If your FAISS files are in data/documents
+data/documents/*.faiss
+data/documents/*.pkl
 
-# OS files
+# ------------------------
+# OS / system files
+# ------------------------
 .DS_Store
 Thumbs.db
+
+# ------------------------
+# Environment files (optional)
+# ------------------------
+.env
