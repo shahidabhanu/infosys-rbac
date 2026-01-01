@@ -14,8 +14,8 @@ st.set_page_config(
 # ---------------- PATH CONFIG ----------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-INDEX_PATH = os.path.join(BASE_DIR, "backend", "app", "vector_db", "index.faiss")
-META_PATH = os.path.join(BASE_DIR, "backend", "app", "vector_db", "metadata.pkl")
+INDEX_PATH = os.path.join(BASE_DIR, "data","vector_db", "index.faiss")
+META_PATH = os.path.join(BASE_DIR, "data", "vector_db", "metadata.pkl")
 
 # ---------------- LOAD MODEL ----------------
 MODEL = SentenceTransformer("all-MiniLM-L6-v2")
