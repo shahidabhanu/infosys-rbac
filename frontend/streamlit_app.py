@@ -1,119 +1,105 @@
 import streamlit as st
-from sentence_transformers import SentenceTransformer
-import chromadb
-from chromadb.config import Settings
+import pickle
 import numpy as np
+import os
+from sentence_transformers import SentenceTransformer
+import faiss
 
 # ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="🔐 Company Internal Chatbot", layout="centered")
+st.set_page_config(
+    page_title="Company Internal Chatbot",
+    layout="centered"
+)
 
-# ---------------- USERS & ROLES ----------------
-USERS = {
-    "intern": {"password": "intern123", "role": "intern"},
-    "hr": {"password": "hr123", "role": "hr"},
-    "finance": {"password": "finance123", "role": "finance"},
-    "admin": {"password": "admin123", "role": "admin"},
-    "ceo": {"password": "ceo123", "role": "c_level"},
-}
+st.title("🔐 Company Internal Chatbot")
 
-ROLE_ACCESS = {
-    "intern": ["general"],
-    "hr": ["general", "hr"],
-    "finance": ["general", "finance"],
-    "c_level": ["general", "finance", "c_level"],
-    "admin": ["general", "hr", "finance", "c_level"],
-}
-
-SIMILARITY_THRESHOLD = 0.35   # 🔥 KEY FIX
-
-# ---------------- SESSION STATE ----------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# ---------------- LOGIN ----------------
-if not st.session_state.logged_in:
-    st.title("🔐 Company Internal Chatbot")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if username in USERS and USERS[username]["password"] == password:
-            st.session_state.logged_in = True
-            st.session_state.user = username
-            st.session_state.role = USERS[username]["role"]
-            st.rerun()
-        else:
-            st.error("❌ Invalid credentials")
-
-    st.stop()
-
-# ---------------- AFTER LOGIN ----------------
-st.success(f"✅ Logged in as **{st.session_state.user}** ({st.session_state.role})")
+# ---------------- PATH CONFIG ----------------
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INDEX_PATH = os.path.join(BASE_DIR, "data", "vector_db", "index.faiss")
+META_PATH = os.path.join(BASE_DIR, "data", "vector_db", "metadata.pkl")
 
 # ---------------- LOAD MODEL ----------------
 @st.cache_resource
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
-model = load_model()
+MODEL = load_model()
 
-# ---------------- CHROMADB ----------------
-@st.cache_resource
-def load_chroma():
-    client = chromadb.Client(Settings(anonymized_telemetry=False))
-    return client.get_or_create_collection(name="company_docs")
+# ---------------- LOAD VECTOR STORE ----------------
+if not os.path.exists(INDEX_PATH) or not os.path.exists(META_PATH):
+    st.error("❌ Vector store not found. Build index first.")
+    st.stop()
 
-collection = load_chroma()
+index = faiss.read_index(INDEX_PATH)
 
-# ---------------- SEED DATA ----------------
-if collection.count() == 0:
-    docs = [
-        ("Company working hours are 9 AM to 6 PM.", "general"),
-        ("Interns receive mentorship and training programs.", "general"),
-        ("HR policies include leave, attendance, and conduct rules.", "hr"),
-        ("Employee salaries are confidential.", "finance"),
-        ("Company profit grew by 18% this year.", "finance"),
-        ("CEO strategy focuses on global expansion.", "c_level"),
-    ]
+with open(META_PATH, "rb") as f:
+    metadata = pickle.load(f)
 
-    collection.add(
-        documents=[d[0] for d in docs],
-        metadatas=[{"category": d[1]} for d in docs],
-        ids=[str(i) for i in range(len(docs))]
-    )
+# ---------------- USERS ----------------
+USERS = {
+    "intern": {"password": "intern123", "role": "employee"},
+    "finance": {"password": "finance123", "role": "finance"},
+    "hr": {"password": "hr123", "role": "hr"},
+    "ceo": {"password": "ceo123", "role": "clevel"},
+    "cto": {"password": "cto123", "role": "clevel"},
+    "cfo": {"password": "cfo123", "role": "clevel"},
+    "admin": {"password": "admin123", "role": "admin"},
+}
+
+# ---------------- SESSION ----------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# ---------------- RBAC ----------------
+def is_allowed(user_role, doc_role):
+    if user_role == "admin":
+        return True
+    if user_role == "clevel":
+        return doc_role in ["general", "finance", "hr"]
+    return user_role == doc_role or doc_role == "general"
+
+# ---------------- LOGIN ----------------
+if not st.session_state.logged_in:
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if username in USERS and USERS[username]["password"] == password:
+            st.session_state.logged_in = True
+            st.session_state.role = USERS[username]["role"]
+            st.success(f"✅ Logged in as {st.session_state.role}")
+            st.rerun()
+        else:
+            st.error("❌ Invalid credentials")
+
+    st.stop()
 
 # ---------------- CHAT ----------------
 st.subheader("💬 Ask your question")
 query = st.text_input("Enter your question")
 
 if query:
-    query_embedding = model.encode(query).tolist()
-    allowed_categories = ROLE_ACCESS[st.session_state.role]
+    query_vec = MODEL.encode(query).astype("float32").reshape(1, -1)
 
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=5,
-        where={"category": {"$in": allowed_categories}}
-    )
+    # Retrieve top 5 only
+    distances, indices = index.search(query_vec, 5)
 
-    documents = results.get("documents", [[]])[0]
-    distances = results.get("distances", [[]])[0]
+    allowed_answers = []
 
-    if not documents:
-        st.error("❌ No authorized data available.")
-        st.stop()
+    for idx, dist in zip(indices[0], distances[0]):
+        doc = metadata[idx]
 
-    # 🔥 PICK BEST MATCH WITH THRESHOLD
-    best_idx = np.argmin(distances)
-    best_distance = distances[best_idx]
-    best_answer = documents[best_idx]
+        # DEBUG SAFETY
+        doc_role = doc.get("role", "general")
 
-    if best_distance > SIMILARITY_THRESHOLD:
-        st.warning("⚠️ No relevant information found for your question.")
-    else:
+        if is_allowed(st.session_state.role, doc_role):
+            allowed_answers.append(doc["text"])
+
+    if allowed_answers:
         st.success("Answer:")
-        st.write(best_answer)
+        st.write(allowed_answers[0])  # only most relevant
+    else:
+        st.warning("❌ No relevant information available for your access level.")
 
 # ---------------- LOGOUT ----------------
 st.markdown("---")
