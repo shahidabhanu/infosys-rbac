@@ -1,5 +1,5 @@
 import streamlit as st
-from sentence_transformers import Sentence_Transformers
+from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
 import numpy as np
