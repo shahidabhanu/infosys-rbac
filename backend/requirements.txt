@@ -4,6 +4,7 @@ python-jose
 passlib[bcrypt]
 sentence-transformers
 faiss-cpu
+chromadb
 pydantic
 streamlit
 huggingface-hub

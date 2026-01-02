@@ -1,136 +1,121 @@
 import streamlit as st
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-
-import os
-import pickle
-import faiss
-import numpy as np
 from sentence_transformers import SentenceTransformer
+import chromadb
+from chromadb.config import Settings
 
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
-st.set_page_config(
-    page_title="Company Internal Chatbot",
-    layout="centered"
-)
+# ----------------------------
+# BASIC CONFIG
+# ----------------------------
+st.set_page_config(page_title="🔐 Company Internal Chatbot", layout="centered")
 
-st.title("🔐 Company Internal Chatbot")
-
-# --------------------------------------------------
-# PATH CONFIG
-# --------------------------------------------------
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-INDEX_PATH = os.path.join(BASE_DIR, "data", "vector_db", "index.faiss")
-META_PATH  = os.path.join(BASE_DIR, "data", "vector_db", "metadata.pkl")
-
-# --------------------------------------------------
-# SAFETY CHECK
-# --------------------------------------------------
-if not os.path.exists(INDEX_PATH) or not os.path.exists(META_PATH):
-    st.error("❌ Vector store not found. Please create FAISS index first.")
-    st.stop()
-
-# --------------------------------------------------
-# LOAD MODEL (CPU SAFE)
-# --------------------------------------------------
-@st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-
-MODEL = load_model()
-
-# --------------------------------------------------
-# LOAD VECTOR STORE
-# --------------------------------------------------
-index = faiss.read_index(INDEX_PATH)
-
-with open(META_PATH, "rb") as f:
-    metadata = pickle.load(f)
-
-# --------------------------------------------------
-# USERS (RBAC)
-# --------------------------------------------------
+# ----------------------------
+# USERS & ROLES
+# ----------------------------
 USERS = {
-    "intern": {"password": "intern123", "role": "employee"},
+    "intern": {"password": "intern123", "role": "intern"},
     "hr": {"password": "hr123", "role": "hr"},
     "finance": {"password": "finance123", "role": "finance"},
-
-    "ceo": {"password": "ceo123", "role": "clevel"},
-    "cto": {"password": "cto123", "role": "clevel"},
-    "cfo": {"password": "cfo123", "role": "clevel"},
-
     "admin": {"password": "admin123", "role": "admin"},
+    "ceo": {"password": "ceo123", "role": "c_level"},
 }
 
-# --------------------------------------------------
-# SESSION STATE
-# --------------------------------------------------
+ROLE_ACCESS = {
+    "intern": ["general"],
+    "hr": ["general", "hr"],
+    "finance": ["general", "finance"],
+    "admin": ["general", "hr", "finance", "c_level"],
+    "c_level": ["general", "finance", "c_level"],
+}
+
+# ----------------------------
+# LOGIN
+# ----------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.role = None
-    st.session_state.username = None
 
-# --------------------------------------------------
-# RBAC FILTER (VERY IMPORTANT)
-# --------------------------------------------------
-def allowed_docs(user_role, docs):
-    if user_role == "admin":
-        return docs
-
-    if user_role == "clevel":
-        return [d for d in docs if d["role"] in ["general", "hr", "finance"]]
-
-    if user_role == "employee":
-        return [d for d in docs if d["role"] in ["general", "employee"]]
-
-    return [d for d in docs if d["role"] in ["general", user_role]]
-
-# --------------------------------------------------
-# LOGIN UI
-# --------------------------------------------------
 if not st.session_state.logged_in:
+    st.title("🔐 Company Internal Chatbot")
+
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
         if username in USERS and USERS[username]["password"] == password:
             st.session_state.logged_in = True
+            st.session_state.user = username
             st.session_state.role = USERS[username]["role"]
-            st.session_state.username = username
-            st.success(f"✅ Logged in as {st.session_state.role}")
-            st.rerun()   # 🔥 THIS FIXES YOUR ISSUE
+            st.rerun()
         else:
             st.error("❌ Invalid credentials")
 
     st.stop()
 
-# --------------------------------------------------
-# CHAT UI
-# --------------------------------------------------
-st.subheader(f"💬 Welcome {st.session_state.username}")
-query = st.text_input("Ask your question")
+# ----------------------------
+# AFTER LOGIN
+# ----------------------------
+st.success(f"✅ Logged in as **{st.session_state.user}** ({st.session_state.role})")
 
-if query:
-    query_vec = MODEL.encode([query]).astype("float32")
-    D, I = index.search(query_vec, 5)
+# ----------------------------
+# LOAD MODEL
+# ----------------------------
+@st.cache_resource
+def load_model():
+    return SentenceTransformer("all-MiniLM-L6-v2")
 
-    retrieved_docs = [metadata[i] for i in I[0]]
-    permitted_docs = allowed_docs(st.session_state.role, retrieved_docs)
+model = load_model()
 
-    if not permitted_docs:
-        st.error("❌ Access denied for your role.")
+# ----------------------------
+# CHROMADB SETUP
+# ----------------------------
+@st.cache_resource
+def load_chroma():
+    client = chromadb.Client(Settings(anonymized_telemetry=False))
+    return client.get_or_create_collection(name="company_docs")
+
+collection = load_chroma()
+
+# ----------------------------
+# SAMPLE DATA (YOU CAN REPLACE WITH FILE INGESTION)
+# ----------------------------
+if collection.count() == 0:
+    docs = [
+        ("Company working hours are 9AM to 6PM.", "general"),
+        ("Interns receive mentorship and training programs.", "general"),
+        ("HR policy includes leave, attendance, and conduct rules.", "hr"),
+        ("Employee salaries are confidential.", "finance"),
+        ("Company profit grew by 18% this year.", "finance"),
+        ("CEO strategy focuses on global expansion.", "c_level"),
+    ]
+
+    collection.add(
+        documents=[d[0] for d in docs],
+        metadatas=[{"category": d[1]} for d in docs],
+        ids=[str(i) for i in range(len(docs))]
+    )
+
+# ----------------------------
+# CHAT INTERFACE
+# ----------------------------
+st.subheader("💬 Ask a Question")
+
+query = st.text_input("Your question")
+
+if st.button("Ask") and query:
+    query_embedding = model.encode(query).tolist()
+
+    allowed_categories = ROLE_ACCESS[st.session_state.role]
+
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=3,
+        where={"category": {"$in": allowed_categories}}
+    )
+
+    docs = results.get("documents", [[]])[0]
+
+    if not docs:
+        st.warning("🚫 Access denied or no relevant data found.")
     else:
-        st.success("Answer:")
-        for doc in permitted_docs[:2]:   # 🔥 LIMIT ANSWERS
-            st.write("•", doc["text"])
-
-# --------------------------------------------------
-# LOGOUT
-# --------------------------------------------------
-st.markdown("---")
-if st.button("Logout"):
-    st.session_state.clear()
-    st.rerun()
+        st.markdown("### ✅ Answer")
+        for d in docs:
+            st.write("•", d)
