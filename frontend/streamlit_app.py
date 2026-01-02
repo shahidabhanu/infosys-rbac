@@ -48,33 +48,28 @@ def is_allowed(user_role, doc_role):
 
 # ---------------- BUILD VECTOR STORE ----------------
 def build_vector_store():
-    client = chromadb.Client(
-        Settings(persist_directory=VECTOR_DB_PATH)
-    )
-
-    collection = client.get_or_create_collection("company_docs")
-
     documents = [
+        {"text": "Interns receive mentorship and training programs.", "role": "general"},
         {"text": "Employee salaries are confidential.", "role": "hr"},
-        {"text": "Interns receive mentorship and training programs.", "role": "employee"},
         {"text": "Company profit grew by 18% this year.", "role": "finance"},
-        {"text": "HR policies apply to all full-time employees.", "role": "hr"},
-        {"text": "Company vision focuses on long-term innovation.", "role": "general"},
+        {"text": "HR policies are available to HR staff only.", "role": "hr"},
+        {"text": "Company culture promotes innovation and teamwork.", "role": "general"},
     ]
 
-    texts = [d["text"] for d in documents]
-    roles = [d["role"] for d in documents]
-
-    embeddings = MODEL.encode(texts).tolist()
-
-    collection.add(
-        documents=texts,
-        embeddings=embeddings,
-        metadatas=[{"role": r} for r in roles],
-        ids=[str(i) for i in range(len(texts))]
+    collection = client.get_or_create_collection(
+        name="company_docs",
+        embedding_function=embedding_fn
     )
 
-    client.persist()
+    for i, doc in enumerate(documents):
+        collection.add(
+            documents=[doc["text"]],
+            metadatas=[{"role": doc["role"]}],
+            ids=[f"doc_{i}"]
+        )
+
+    # ❌ DO NOT CALL client.persist()
+    # ✅ Chroma automatically persists
 
 # ---------------- LOAD / CREATE VECTOR STORE ----------------
 if not os.path.exists(VECTOR_DB_PATH):
