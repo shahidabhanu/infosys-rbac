@@ -1,9 +1,8 @@
 import streamlit as st
-import pickle
-import numpy as np
 import os
 from sentence_transformers import SentenceTransformer
-import faiss
+import chromadb
+from chromadb.config import Settings
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -15,8 +14,7 @@ st.title("🔐 Company Internal Chatbot")
 
 # ---------------- PATH CONFIG ----------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INDEX_PATH = os.path.join(BASE_DIR, "data", "vector_db", "index.faiss")
-META_PATH = os.path.join(BASE_DIR, "data", "vector_db", "metadata.pkl")
+VECTOR_DB_PATH = os.path.join(BASE_DIR, "data", "vectorstore")
 
 # ---------------- LOAD MODEL ----------------
 @st.cache_resource
@@ -24,16 +22,6 @@ def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 MODEL = load_model()
-
-# ---------------- LOAD VECTOR STORE ----------------
-if not os.path.exists(INDEX_PATH) or not os.path.exists(META_PATH):
-    st.error("❌ Vector store not found. Build index first.")
-    st.stop()
-
-index = faiss.read_index(INDEX_PATH)
-
-with open(META_PATH, "rb") as f:
-    metadata = pickle.load(f)
 
 # ---------------- USERS ----------------
 USERS = {
@@ -58,6 +46,48 @@ def is_allowed(user_role, doc_role):
         return doc_role in ["general", "finance", "hr"]
     return user_role == doc_role or doc_role == "general"
 
+# ---------------- BUILD VECTOR STORE ----------------
+def build_vector_store():
+    client = chromadb.Client(
+        Settings(persist_directory=VECTOR_DB_PATH)
+    )
+
+    collection = client.get_or_create_collection("company_docs")
+
+    documents = [
+        {"text": "Employee salaries are confidential.", "role": "hr"},
+        {"text": "Interns receive mentorship and training programs.", "role": "employee"},
+        {"text": "Company profit grew by 18% this year.", "role": "finance"},
+        {"text": "HR policies apply to all full-time employees.", "role": "hr"},
+        {"text": "Company vision focuses on long-term innovation.", "role": "general"},
+    ]
+
+    texts = [d["text"] for d in documents]
+    roles = [d["role"] for d in documents]
+
+    embeddings = MODEL.encode(texts).tolist()
+
+    collection.add(
+        documents=texts,
+        embeddings=embeddings,
+        metadatas=[{"role": r} for r in roles],
+        ids=[str(i) for i in range(len(texts))]
+    )
+
+    client.persist()
+
+# ---------------- LOAD / CREATE VECTOR STORE ----------------
+if not os.path.exists(VECTOR_DB_PATH):
+    st.warning("📦 Vector store not found. Building index...")
+    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
+    build_vector_store()
+    st.success("✅ Vector store created")
+
+client = chromadb.Client(
+    Settings(persist_directory=VECTOR_DB_PATH)
+)
+collection = client.get_collection("company_docs")
+
 # ---------------- LOGIN ----------------
 if not st.session_state.logged_in:
     username = st.text_input("Username")
@@ -79,25 +109,24 @@ st.subheader("💬 Ask your question")
 query = st.text_input("Enter your question")
 
 if query:
-    query_vec = MODEL.encode(query).astype("float32").reshape(1, -1)
+    query_embedding = MODEL.encode(query).tolist()
 
-    # Retrieve top 5 only
-    distances, indices = index.search(query_vec, 5)
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=5
+    )
 
     allowed_answers = []
 
-    for idx, dist in zip(indices[0], distances[0]):
-        doc = metadata[idx]
-
-        # DEBUG SAFETY
-        doc_role = doc.get("role", "general")
+    for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
+        doc_role = meta.get("role", "general")
 
         if is_allowed(st.session_state.role, doc_role):
-            allowed_answers.append(doc["text"])
+            allowed_answers.append(doc)
 
     if allowed_answers:
         st.success("Answer:")
-        st.write(allowed_answers[0])  # only most relevant
+        st.write(allowed_answers[0])  # most relevant only
     else:
         st.warning("❌ No relevant information available for your access level.")
 
