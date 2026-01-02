@@ -1,16 +1,10 @@
 fastapi
 uvicorn
 python-jose
-passlib[bcrypt]
-sentence-transformers
-faiss-cpu
-chromadb
 pydantic
 streamlit
-huggingface-hub
-sentence-transformers==2.2.2
-huggingface-hub==0.13.4
-torch==2.1.2
-numpy
 pickle-mixin
-
+# RAG dependencies (Python 3.13 compatible)
+sentence-transformers>=5.0.0
+chromadb>=0.4.22
+faiss-cpu>=1.8.0
