@@ -1,8 +1,11 @@
 import streamlit as st
 import os
+import warnings
+warnings.filterwarnings("ignore")
+
 from sentence_transformers import SentenceTransformer
 import chromadb
-from chromadb.config import Settings
+from chromadb.utils import embedding_functions
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -14,37 +17,25 @@ st.title("🔐 Company Internal Chatbot")
 
 # ---------------- PATH CONFIG ----------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-VECTOR_DB_PATH = os.path.join(BASE_DIR, "data", "vectorstore")
+CHROMA_DIR = os.path.join(BASE_DIR, "data", "chroma_db")
+os.makedirs(CHROMA_DIR, exist_ok=True)
 
-# ---------------- LOAD MODEL ----------------
+# ---------------- EMBEDDING MODEL ----------------
 @st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2")
+def load_embedding():
+    return embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-MiniLM-L6-v2"
+    )
 
-MODEL = load_model()
+embedding_fn = load_embedding()
 
-# ---------------- USERS ----------------
-USERS = {
-    "intern": {"password": "intern123", "role": "employee"},
-    "finance": {"password": "finance123", "role": "finance"},
-    "hr": {"password": "hr123", "role": "hr"},
-    "ceo": {"password": "ceo123", "role": "clevel"},
-    "cto": {"password": "cto123", "role": "clevel"},
-    "cfo": {"password": "cfo123", "role": "clevel"},
-    "admin": {"password": "admin123", "role": "admin"},
-}
-
-# ---------------- SESSION ----------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# ---------------- RBAC ----------------
-def is_allowed(user_role, doc_role):
-    if user_role == "admin":
-        return True
-    if user_role == "clevel":
-        return doc_role in ["general", "finance", "hr"]
-    return user_role == doc_role or doc_role == "general"
+# ---------------- CREATE CHROMA CLIENT ----------------
+client = chromadb.Client(
+    settings=chromadb.Settings(
+        persist_directory=CHROMA_DIR,
+        anonymized_telemetry=False
+    )
+)
 
 # ---------------- BUILD VECTOR STORE ----------------
 def build_vector_store():
@@ -61,27 +52,39 @@ def build_vector_store():
         embedding_function=embedding_fn
     )
 
-    for i, doc in enumerate(documents):
-        collection.add(
-            documents=[doc["text"]],
-            metadatas=[{"role": doc["role"]}],
-            ids=[f"doc_{i}"]
-        )
+    if collection.count() == 0:
+        for i, doc in enumerate(documents):
+            collection.add(
+                documents=[doc["text"]],
+                metadatas=[{"role": doc["role"]}],
+                ids=[f"doc_{i}"]
+            )
 
-    # ❌ DO NOT CALL client.persist()
-    # ✅ Chroma automatically persists
+# 🔥 BUILD ONLY ONCE
+build_vector_store()
 
-# ---------------- LOAD / CREATE VECTOR STORE ----------------
-if not os.path.exists(VECTOR_DB_PATH):
-    st.warning("📦 Vector store not found. Building index...")
-    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
-    build_vector_store()
-    st.success("✅ Vector store created")
+# ---------------- USERS (RBAC) ----------------
+USERS = {
+    "intern": {"password": "intern123", "role": "employee"},
+    "finance": {"password": "finance123", "role": "finance"},
+    "hr": {"password": "hr123", "role": "hr"},
+    "ceo": {"password": "ceo123", "role": "clevel"},
+    "cto": {"password": "cto123", "role": "clevel"},
+    "cfo": {"password": "cfo123", "role": "clevel"},
+    "admin": {"password": "admin123", "role": "admin"},
+}
 
-client = chromadb.Client(
-    Settings(persist_directory=VECTOR_DB_PATH)
-)
-collection = client.get_collection("company_docs")
+# ---------------- SESSION ----------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# ---------------- RBAC CHECK ----------------
+def is_allowed(user_role, doc_role):
+    if user_role == "admin":
+        return True
+    if user_role == "clevel":
+        return doc_role in ["general", "finance", "hr"]
+    return user_role == doc_role or doc_role == "general"
 
 # ---------------- LOGIN ----------------
 if not st.session_state.logged_in:
@@ -104,24 +107,24 @@ st.subheader("💬 Ask your question")
 query = st.text_input("Enter your question")
 
 if query:
-    query_embedding = MODEL.encode(query).tolist()
-
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=5
+    collection = client.get_collection(
+        name="company_docs",
+        embedding_function=embedding_fn
     )
 
-    allowed_answers = []
+    results = collection.query(
+        query_texts=[query],
+        n_results=3
+    )
 
+    answers = []
     for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-        doc_role = meta.get("role", "general")
+        if is_allowed(st.session_state.role, meta["role"]):
+            answers.append(doc)
 
-        if is_allowed(st.session_state.role, doc_role):
-            allowed_answers.append(doc)
-
-    if allowed_answers:
+    if answers:
         st.success("Answer:")
-        st.write(allowed_answers[0])  # most relevant only
+        st.write(answers[0])  # only best answer
     else:
         st.warning("❌ No relevant information available for your access level.")
 
