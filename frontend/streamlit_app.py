@@ -2,6 +2,7 @@ import streamlit as st
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
+import numpy as np
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="🔐 Company Internal Chatbot", layout="centered")
@@ -22,6 +23,8 @@ ROLE_ACCESS = {
     "c_level": ["general", "finance", "c_level"],
     "admin": ["general", "hr", "finance", "c_level"],
 }
+
+SIMILARITY_THRESHOLD = 0.35   # 🔥 KEY FIX
 
 # ---------------- SESSION STATE ----------------
 if "logged_in" not in st.session_state:
@@ -55,7 +58,7 @@ def load_model():
 
 model = load_model()
 
-# ---------------- CHROMADB SETUP ----------------
+# ---------------- CHROMADB ----------------
 @st.cache_resource
 def load_chroma():
     client = chromadb.Client(Settings(anonymized_telemetry=False))
@@ -63,9 +66,9 @@ def load_chroma():
 
 collection = load_chroma()
 
-# ---------------- INITIAL DATA (RUNS ONCE) ----------------
+# ---------------- SEED DATA ----------------
 if collection.count() == 0:
-    documents = [
+    docs = [
         ("Company working hours are 9 AM to 6 PM.", "general"),
         ("Interns receive mentorship and training programs.", "general"),
         ("HR policies include leave, attendance, and conduct rules.", "hr"),
@@ -75,9 +78,9 @@ if collection.count() == 0:
     ]
 
     collection.add(
-        documents=[d[0] for d in documents],
-        metadatas=[{"category": d[1]} for d in documents],
-        ids=[str(i) for i in range(len(documents))]
+        documents=[d[0] for d in docs],
+        metadatas=[{"category": d[1]} for d in docs],
+        ids=[str(i) for i in range(len(docs))]
     )
 
 # ---------------- CHAT ----------------
@@ -94,16 +97,21 @@ if query:
         where={"category": {"$in": allowed_categories}}
     )
 
-    docs = results.get("documents", [[]])[0]
+    documents = results.get("documents", [[]])[0]
     distances = results.get("distances", [[]])[0]
 
-    if not docs:
-        st.error("❌ You are not authorized to view this information.")
-    else:
-        # ✅ PICK ONLY BEST MATCH
-        best_idx = distances.index(min(distances))
-        best_answer = docs[best_idx]
+    if not documents:
+        st.error("❌ No authorized data available.")
+        st.stop()
 
+    # 🔥 PICK BEST MATCH WITH THRESHOLD
+    best_idx = np.argmin(distances)
+    best_distance = distances[best_idx]
+    best_answer = documents[best_idx]
+
+    if best_distance > SIMILARITY_THRESHOLD:
+        st.warning("⚠️ No relevant information found for your question.")
+    else:
         st.success("Answer:")
         st.write(best_answer)
 
