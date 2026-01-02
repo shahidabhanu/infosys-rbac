@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+python-jose
+passlib[bcrypt]
+sentence-transformers
+faiss-cpu
+chromadb
+pydantic
+streamlit
+huggingface-hub
+sentence-transformers==2.2.2
+huggingface-hub==0.13.4
+torch==2.1.2
+numpy
+pickle-mixin
+
