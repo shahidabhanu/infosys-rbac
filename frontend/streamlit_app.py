@@ -3,14 +3,10 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
 
-# ----------------------------
-# BASIC CONFIG
-# ----------------------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="🔐 Company Internal Chatbot", layout="centered")
 
-# ----------------------------
-# USERS & ROLES
-# ----------------------------
+# ---------------- USERS & ROLES ----------------
 USERS = {
     "intern": {"password": "intern123", "role": "intern"},
     "hr": {"password": "hr123", "role": "hr"},
@@ -23,16 +19,15 @@ ROLE_ACCESS = {
     "intern": ["general"],
     "hr": ["general", "hr"],
     "finance": ["general", "finance"],
-    "admin": ["general", "hr", "finance", "c_level"],
     "c_level": ["general", "finance", "c_level"],
+    "admin": ["general", "hr", "finance", "c_level"],
 }
 
-# ----------------------------
-# LOGIN
-# ----------------------------
+# ---------------- SESSION STATE ----------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+# ---------------- LOGIN ----------------
 if not st.session_state.logged_in:
     st.title("🔐 Company Internal Chatbot")
 
@@ -50,23 +45,17 @@ if not st.session_state.logged_in:
 
     st.stop()
 
-# ----------------------------
-# AFTER LOGIN
-# ----------------------------
+# ---------------- AFTER LOGIN ----------------
 st.success(f"✅ Logged in as **{st.session_state.user}** ({st.session_state.role})")
 
-# ----------------------------
-# LOAD MODEL
-# ----------------------------
+# ---------------- LOAD MODEL ----------------
 @st.cache_resource
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 model = load_model()
 
-# ----------------------------
-# CHROMADB SETUP
-# ----------------------------
+# ---------------- CHROMADB SETUP ----------------
 @st.cache_resource
 def load_chroma():
     client = chromadb.Client(Settings(anonymized_telemetry=False))
@@ -74,48 +63,52 @@ def load_chroma():
 
 collection = load_chroma()
 
-# ----------------------------
-# SAMPLE DATA (YOU CAN REPLACE WITH FILE INGESTION)
-# ----------------------------
+# ---------------- INITIAL DATA (RUNS ONCE) ----------------
 if collection.count() == 0:
-    docs = [
-        ("Company working hours are 9AM to 6PM.", "general"),
+    documents = [
+        ("Company working hours are 9 AM to 6 PM.", "general"),
         ("Interns receive mentorship and training programs.", "general"),
-        ("HR policy includes leave, attendance, and conduct rules.", "hr"),
+        ("HR policies include leave, attendance, and conduct rules.", "hr"),
         ("Employee salaries are confidential.", "finance"),
         ("Company profit grew by 18% this year.", "finance"),
         ("CEO strategy focuses on global expansion.", "c_level"),
     ]
 
     collection.add(
-        documents=[d[0] for d in docs],
-        metadatas=[{"category": d[1]} for d in docs],
-        ids=[str(i) for i in range(len(docs))]
+        documents=[d[0] for d in documents],
+        metadatas=[{"category": d[1]} for d in documents],
+        ids=[str(i) for i in range(len(documents))]
     )
 
-# ----------------------------
-# CHAT INTERFACE
-# ----------------------------
-st.subheader("💬 Ask a Question")
+# ---------------- CHAT ----------------
+st.subheader("💬 Ask your question")
+query = st.text_input("Enter your question")
 
-query = st.text_input("Your question")
-
-if st.button("Ask") and query:
+if query:
     query_embedding = model.encode(query).tolist()
-
     allowed_categories = ROLE_ACCESS[st.session_state.role]
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=3,
+        n_results=5,
         where={"category": {"$in": allowed_categories}}
     )
 
     docs = results.get("documents", [[]])[0]
+    distances = results.get("distances", [[]])[0]
 
     if not docs:
-        st.warning("🚫 Access denied or no relevant data found.")
+        st.error("❌ You are not authorized to view this information.")
     else:
-        st.markdown("### ✅ Answer")
-        for d in docs:
-            st.write("•", d)
+        # ✅ PICK ONLY BEST MATCH
+        best_idx = distances.index(min(distances))
+        best_answer = docs[best_idx]
+
+        st.success("Answer:")
+        st.write(best_answer)
+
+# ---------------- LOGOUT ----------------
+st.markdown("---")
+if st.button("Logout"):
+    st.session_state.logged_in = False
+    st.rerun()
